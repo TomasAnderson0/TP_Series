@@ -253,7 +253,7 @@ datos_modelos %>%
 
 ```
 
-Se puede observar que la media de los residuos es aproximadamente igual a 0, y que visualmente pareceria corroborarse que la variancia sea constante a traves del tiempo. Hay dos observaciones que tiene residuos que se encuentran por fuera del intervalo $[-3,3]$, que dan un indicio de ser observaciones atipicas.
+Se puede observar que la media de los residuos es aproximadamente igual a 0. Además, de forma visual, parece corroborarse que la varianza de los residuos se mantiene constante a lo largo del tiempo, lo que sugiere que se cumple la hipótesis de homocedasticidad. Sin embargo, se identifican dos observaciones cuyos residuos se encuentran fuera del intervalo $[-3,3]$, lo que podría indicar que dichas observaciones son atípicas o outliers.
 
 
 ```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.height=6}
@@ -290,7 +290,11 @@ auto4 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
 grid.arrange(auto3, auto4, nrow = 2)
 
 ```
-Visualmente, solo dos rezagos en la funcion de autocorrelacion parcial muestral de los residuos caen por poco fuera de las bandas de significacion, por lo tanto, para estar seguros de que los residuos sean ruidos blancos se prueba con el test de ljung-box.
+
+
+
+Visualmente, solo dos rezagos en la función de autocorrelación parcial muestral de los residuos caen ligeramente fuera de las bandas de significación. Esto sugiere que no hay evidencia clara de correlación en los residuos. Sin embargo, para confirmar de manera más rigurosa que estos residuos sean ruido blanco, se procede a realizar la prueba de Ljung-Box.
+
 
 ```{r, echo = FALSE}
 num = numeric(20)
@@ -304,7 +308,7 @@ num
 ```
 Introducir tabla.
 
-No se rechaza ningun test por lo que se cumple el supuesto de incorrelacion.
+No se rechaza ningún test, por lo que se cumple el supuesto de incorrelación de los residuos. Esto indica que no hay evidencia suficiente para sugerir que los residuos estén correlacionados, lo que respalda la hipótesis de que los residuos son independientes y, por lo tanto, se puede considerar que el modelo ajustado cumple con este supuesto.
 
 
 
@@ -326,34 +330,86 @@ ggplot(datos_modelos) +
 ```
 
 
-La normalidad no se cumple. El p-value del test de Shapiro-wilks es <0.0001.
+La normalidad de los residuos no se cumple.
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 report(modelo)
 ```
 
+Dado que el modelo planteado tiene un único parámetro, se puede considerar como el modelo más parsimonioso posible.
 
-Como el modelo planteado tiene un unico parametro, este sera el modelo mas parsimonioso posible.
 
-
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 prediccion = modelo %>% forecast(h = 4)
+options(scipen = 999)
+datos_total %>%  mutate(color = c(datos$agricultura* 0, rep(1,4)),
+                        prediccion = c(datos$agricultura, prediccion$.mean)) %>% 
+  ggplot() +
+  aes(x = indice_tiempo, y = agricultura) +
+  geom_line(color = "steelblue", size = .78) + 
+  labs(x = "Años", y = "Millones de pesos (a precios de 2004)") + 
+  scale_x_date(limits = c(as.Date("2004-01-01"),as.Date("2024-04-01")),
+               breaks = seq(from = as.Date("2004-01-01"),
+                            to = as.Date("2024-04-01"), by = "2 years"),
+               date_labels = "%Y") + geom_point(color = "#D34343", size = 1) +
+  geom_line(aes(y = prediccion, color = factor(color))) +
+  scale_color_discrete(type = c("steelblue", "yellow"), 
+                       labels = c("Observados", "Predichos"),
+                       name = c("Valores")) +
+  geom_point(aes(y = 33356.41, 
+                 x = as.Date("2023-07-01")), 
+             color = "black", size = 1) +
+  geom_point(aes(y = 34192.26, 
+                 x = as.Date("2023-10-01")), 
+             color = "black", size = 1)+
+  geom_point(aes(y =  37925.45, 
+                 x = as.Date("2024-01-01")), 
+             color = "black", size = 1)+
+  geom_point(aes(y =  84060.91, 
+                 x = as.Date("2024-04-01")), 
+             color = "black", size = 1)
 
-mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[,1])*100
+
+
+mape = mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[,1])*100
 ```
-```{r}
+
+El MAPE es igual a `r mape`%, lo que indica que las estimaciones del modelo son bastante precisas.
+
+```{r, echo=FALSE, warning=FALSE}
+
+
+
 datos_final <- datos_total %>% mutate(indice_tiempo = yearquarter(indice_tiempo)) %>% as_tsibble(index = indice_tiempo)
 
 modelo_final = datos_final %>% model(arima = ARIMA(agricultura ~ pdq(0,0,0) + PDQ(0,1,1)))
 
+prediccion2 = modelo_final %>% forecast(h = 4) 
+
+datos_total %>%  mutate(color = datos_total$agricultura* 0 ,
+                        indice_tiempo = indice_tiempo) %>% 
+  rbind(list(color = rep(1,4),
+       agricultura = prediccion2$.mean,
+       indice_tiempo = datos_total$indice_tiempo[79:82] %m+% months(12))) %>% 
+ 
+  ggplot() +
+  aes(x = indice_tiempo, y = agricultura) +
+  geom_line(aes(color = factor(color)), size = .78) + 
+  labs(x = "Años", y = "Millones de pesos (a precios de 2004)") + 
+  scale_x_date(limits = c(as.Date("2004-01-01"),as.Date("2025-04-01")),
+               breaks = seq(from = as.Date("2004-01-01"),
+                            to = as.Date("2026-04-01"), by = "2 years"),
+               date_labels = "%Y") + geom_point(color = "#D34343", size = 1) +
+  scale_color_discrete(type = c("steelblue", "yellow"), 
+                       labels = c("Observados", "Predichos"),
+                       name = c("Valores"))
 
 
-modelo_final %>% forecast(h = 4) %>% autoplot(datos_final)
 
 ```
 
 
-
+Se puede observar que el modelo predice que el final del año 2024 y el comienzo del 2025 serán similares al año anterior. Esto sugiere que las condiciones que están modeladas y observadas en el período actual tienden a mantenerse estables en el futuro cercano, según las tendencias identificadas por el modelo. Esta predicción podría implicar que no se anticipan cambios significativos en las variables de interés a corto plazo.
 
 
 
