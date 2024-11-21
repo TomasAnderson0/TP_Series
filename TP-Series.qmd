@@ -56,7 +56,7 @@ Argentina se destaca como uno de los principales exportadores de productos agrí
 
 Una métrica clave para cuantificar la actividad económica de este sector es el Valor Agregado Bruto (VAB). Esta magnitud económica mide el valor añadido generado por los productores en un área específica, reflejando el valor que se agrega a los bienes y servicios en las diversas etapas del proceso productivo. En términos sencillos, el VAB se calcula restando el total de costos de producción del valor del producto final, proporcionando una visión clara de la contribución económica real del sector.
 
-Este estudio se centrará en el análisis del VAB trimestral del sector de agricultura, ganadería, caza y silvicultura desde 2004 hasta la actualidad. El objetivo es modelar la evolución de esta métrica a lo largo del tiempo, lo que permitirá predecir el estado futuro del sector agrícola y su potencial desarrollo.
+Este estudio se centrará en el análisis del VAB trimestral del sector de agricultura, ganadería, caza y silvicultura desde 2004 hasta la actualidad($n = 82$). El objetivo es modelar la evolución de esta métrica a lo largo del tiempo, lo que permitirá predecir el estado futuro del sector agrícola y su potencial desarrollo.
 
 ## Análisis descriptivo
 
@@ -93,7 +93,7 @@ ggplot(data = datos) +
 
 ```
 
-En la figura 1 se puede observar que el Valor Agregado Bruto (VAB) trimestral no presenta un comportamiento estacionario en términos de media, ya que muestra un incremento continuo a lo largo del tiempo. Es importante destacar que los segundos trimestres de cada año son los períodos en los que se registran los mayores ingresos en los sectores de agricultura, ganadería, caza y silvicultura. Además, la variabilidad del VAB no parece estar relacionada con el paso del tiempo.
+En la figura 1 se puede observar que el Valor Agregado Bruto (VAB) trimestral no presenta un comportamiento estacionario en términos de la media, ya que muestra un incremento continuo a lo largo del tiempo. Es importante destacar que los segundos trimestres de cada año son los períodos en los que se registran los mayores ingresos en los sectores de agricultura, ganadería, caza y silvicultura. Además, la variabilidad del VAB no parece estar relacionada con el paso del tiempo.
 
 ```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap="Comportamiento anual del VAB"}
 datos_t <- datos %>% mutate(indice_tiempo = yearquarter(indice_tiempo)) %>% as_tsibble(index = indice_tiempo)
@@ -120,7 +120,9 @@ gg_subseries(datos_t, agricultura) + labs(x = "Trimestres", y = "VAB") + theme_b
 
 Como en la anterior, en la figura 3 se observa claramente la diferencia en el VAB medio entre los trimestres. Además, se puede apreciar de manera más evidente la falta de estacionaridad, ya que el VAB parece mostrar un aumento constante a lo largo de los años.
 
+## Identificacion del modelo
 
+Antes de proceder con la identificación del modelo, se reservan las últimas 4 observaciones para evaluar su capacidad predictiva. De este modo, la identificación del modelo se lleva a cabo con las primeras 78 observaciones de la serie.
 
 ```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap = "Autocorrelación y autocorrelación parcial muestral", fig.height=6}
 bacf <- acf(datos$agricultura, plot = FALSE, lag.max = 70)
@@ -330,7 +332,7 @@ ggplot(datos_modelos) +
 ```
 
 
-La normalidad de los residuos no se cumple.
+En la figura X se observa que los cuantiles de los residuos no se ajustan a los de una distribución normal. Además, se aplicó el test de Shapiro-Wilk sobre los residuos para evaluar su normalidad, el cual rechaza la hipótesis de que los residuos siguen una distribución normal.
 
 ```{r, echo=FALSE, warning=FALSE}
 report(modelo)
@@ -339,40 +341,65 @@ report(modelo)
 Dado que el modelo planteado tiene un único parámetro, se puede considerar como el modelo más parsimonioso posible.
 
 
-```{r, echo=FALSE, warning=FALSE}
-prediccion = modelo %>% forecast(h = 4)
+## Evaluacion predictiva del modelo
+
+
+
+```{r, echo=FALSE, warning=FALSE, eval=FALSE}
+prediccion = modelo %>% forecast(h = 4) %>% as.data.frame() %>% mutate(indice_tiempo = datos_total$indice_tiempo[79:82])
 options(scipen = 999)
-datos_total %>%  mutate(color = c(datos$agricultura* 0, rep(1,4)),
+datos_total[] %>%  mutate(color = c(datos$agricultura* 0, rep(1,4)),
                         prediccion = c(datos$agricultura, prediccion$.mean)) %>% 
   ggplot() +
-  aes(x = indice_tiempo, y = agricultura) +
-  geom_line(color = "steelblue", size = .78) + 
+  geom_line(aes(x = indice_tiempo, y = agricultura),color = "steelblue", size = .78) + 
   labs(x = "Años", y = "Millones de pesos (a precios de 2004)") + 
   scale_x_date(limits = c(as.Date("2004-01-01"),as.Date("2024-04-01")),
                breaks = seq(from = as.Date("2004-01-01"),
                             to = as.Date("2024-04-01"), by = "2 years"),
-               date_labels = "%Y") + geom_point(color = "#D34343", size = 1) +
-  geom_line(aes(y = prediccion, color = factor(color))) +
-  scale_color_discrete(type = c("steelblue", "yellow"), 
+               date_labels = "%Y") + 
+  geom_point(aes(x = indice_tiempo, y = agricultura),color = "#D34343", size = 1) +
+  geom_line(aes(x = indice_tiempo, y = prediccion, color = factor(color))) +
+  scale_color_discrete(type = c("steelblue", "green"), 
                        labels = c("Observados", "Predichos"),
-                       name = c("Valores")) +
-  geom_point(aes(y = 33356.41, 
-                 x = as.Date("2023-07-01")), 
-             color = "black", size = 1) +
-  geom_point(aes(y = 34192.26, 
-                 x = as.Date("2023-10-01")), 
-             color = "black", size = 1)+
-  geom_point(aes(y =  37925.45, 
-                 x = as.Date("2024-01-01")), 
-             color = "black", size = 1)+
-  geom_point(aes(y =  84060.91, 
-                 x = as.Date("2024-04-01")), 
-             color = "black", size = 1)
+                       name = c("Valores")) + 
+  geom_point(data = datos_total[79:82,] ,aes(y = asd, x =indice_tiempo)) +
+  geom_ribbon(data = prediccion,
+              aes(ymin=quantile(agricultura, p = .975),
+                  ymax=quantile(agricultura, p = .025),
+                  x = indice_tiempo), alpha=0.3)
 
-
-
+quantile(prediccion$agricultura, p = .975)
+quantile(prediccion$agricultura, p = .025)
 mape = mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[,1])*100
 ```
+
+```{r}
+colors <- c("Observados" = "steelblue", "Predichos" = "darkred")
+prediccion = modelo %>% forecast(h = 4) %>% as.data.frame() %>% mutate(indice_tiempo = datos_total$indice_tiempo[79:82])
+datos_total[79:82,] %>%   
+  ggplot() +
+  geom_line(aes(x = indice_tiempo, 
+                y = agricultura, 
+                color = "Observados"),
+            size = .78) + 
+  labs(x = "Años",
+       y = "Millones de pesos (a precios de 2004)", 
+       color = "Valores") + 
+  scale_x_date(breaks = seq(from = as.Date("2004-01-01"),
+                            to = as.Date("2024-04-01"), by = "3 month"),
+               date_labels = "%m/%Y") + 
+  geom_point(aes(x = indice_tiempo, y = agricultura),color = "steelblue", size = 2) +
+  geom_line(data = prediccion, aes(x = indice_tiempo, y = .mean, color = "Predichos")) +
+  geom_point(data = prediccion ,aes(y = .mean, x =indice_tiempo, color = ), color = "#D34343") +
+  geom_ribbon(data = prediccion,
+              aes(ymin=quantile(agricultura, p = .975),
+                  ymax=quantile(agricultura, p = .025),
+                  x = indice_tiempo), alpha=0.1, color = "black", fill = "gold") + scale_color_manual(values = colors)
+mape = mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[,1])*100
+```
+
+
+
 
 El MAPE es igual a `r mape`%, lo que indica que las estimaciones del modelo son bastante precisas.
 
