@@ -5,6 +5,7 @@ lang: "es"
 header-includes:
   - \usepackage{ragged2e}
   - \usepackage{hyperref}
+  - \usepackage{dblfloatfix}
 ---
 
 \Centering
@@ -15,26 +16,39 @@ header-includes:
 
 \vspace{5cm}
 
-\large
+
+
+
+\Huge
 
 LICENCIATURA EN ESTADÍSTICA
 
-\vspace{1cm}
+
 
 \large
 \Huge
 
-"Series" \Huge \newline \vspace{0.3cm}
+\vspace{3cm}
 
-\normalsize
+"Análisis temporal del Valor Bruto Agregado" \Huge \newline \vspace{1cm}
 
-Trabajo Práctico 3 \vspace{1cm}
+\large
 
-Autores: Tomás Anderson
+Para el sector de agricultura, ganadería, caza y  \newline silvicultura de la República Argentina \vspace{1cm}
 
-Docentes:
+\vspace{5cm}
+Autor: Tomás Anderson
 
-05/06/2024 \normalsize
+Docentes: Fernanda Méndez, Facundo Sigal
+
+28/11/2024 \normalsize
+
+
+\begin{figure}[b]
+\begin{center}
+    \includegraphics[width=1\linewidth]{foto1.png}
+\end{center}
+\end{figure}
 
 ```{=tex}
 \newpage
@@ -56,13 +70,13 @@ Argentina se destaca como uno de los principales exportadores de productos agrí
 
 Una métrica clave para cuantificar la actividad económica de este sector es el Valor Agregado Bruto (VAB). Esta magnitud económica mide el valor añadido generado por los productores en un área específica, reflejando el valor que se agrega a los bienes y servicios en las diversas etapas del proceso productivo. En términos sencillos, el VAB se calcula restando el total de costos de producción del valor del producto final, proporcionando una visión clara de la contribución económica real del sector.
 
-Este estudio se centrará en el análisis del VAB trimestral del sector de agricultura, ganadería, caza y silvicultura desde 2004 hasta la actualidad($n = 82$). El objetivo es modelar la evolución de esta métrica a lo largo del tiempo, lo que permitirá predecir el estado futuro del sector agrícola y su potencial desarrollo.
+Este estudio se centrará en el análisis del VAB trimestral del sector de agricultura, ganadería, caza y silvicultura desde 2004 hasta la actualidad ($n = 82$). El objetivo es modelar la evolución de esta métrica a lo largo del tiempo, lo que permitirá predecir el estado futuro del sector agrícola y su potencial desarrollo.
 
 ## Análisis descriptivo
 
-Como primer medida se grafica el VAB a traves del tiempo para observar la estructura que presenta los datos.
+Como primera medida, se grafica el VAB a través del tiempo para observar la estructura que presentan los datos.
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap = "Serie del VAB. Periodo 2004-2024"}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap = "Serie del VAB. Período 2004-2024"}
 library(ggplot2)
 library(dplyr)
 library(readr)
@@ -81,7 +95,7 @@ datos <-datos_total[1:78,]
 options(scipen = 999)
 
 
-ggplot(data = datos) + 
+ggplot(data = datos_total) + 
   aes(x = indice_tiempo, y = agricultura) +
   geom_line(color = "steelblue", size = .78) + 
   labs(x = "Años", y = "Millones de pesos (a precios de 2004)") + 
@@ -98,7 +112,9 @@ En la figura 1 se puede observar que el Valor Agregado Bruto (VAB) trimestral no
 ```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap="Comportamiento anual del VAB"}
 datos_t <- datos %>% mutate(indice_tiempo = yearquarter(indice_tiempo)) %>% as_tsibble(index = indice_tiempo)
 
-gg_season(datos_t, agricultura, labels = "both") + labs(x = "Años", y = "VAB") + theme_bw()
+datos_t2 = datos_total %>% mutate(indice_tiempo = yearquarter(indice_tiempo)) %>% as_tsibble(index = indice_tiempo)
+
+gg_season(datos_t2, agricultura, labels = "both") + labs(x = "Años", y = "VAB") + theme_bw()
 
 
 ```
@@ -110,21 +126,24 @@ En la figura 2 se puede apreciar un comportamiento estacional en el VAB, donde l
 
 
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap="Comportamiento del"}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap="Comportamiento trimestral del VAB"}
 
-gg_subseries(datos_t, agricultura) + labs(x = "Trimestres", y = "VAB") + theme_bw()
+gg_subseries(datos_t2, agricultura) + 
+  labs(x = "Trimestres", y = "VAB") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
 
 
 
 ```
 
-Como en la anterior, en la figura 3 se observa claramente la diferencia en el VAB medio entre los trimestres. Además, se puede apreciar de manera más evidente la falta de estacionaridad, ya que el VAB parece mostrar un aumento constante a lo largo de los años.
+Como en la figura anterior, en la figura 3 se observa claramente la diferencia en el VAB medio entre los trimestres. Además, se puede apreciar de manera más evidente la falta de estacionaridad, ya que el VAB parece mostrar un aumento constante a lo largo de los años.
 
-## Identificacion del modelo
+## Identificación del modelo
 
 Antes de proceder con la identificación del modelo, se reservan las últimas 4 observaciones para evaluar su capacidad predictiva. De este modo, la identificación del modelo se lleva a cabo con las primeras 78 observaciones de la serie.
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap = "Autocorrelación y autocorrelación parcial muestral", fig.height=6}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap = "Autocorrelación muestral y autocorrelación parcial muestral del VAB", fig.height=6}
 bacf <- acf(datos$agricultura, plot = FALSE, lag.max = 70)
 
 bacfdf <- with(bacf, data.frame(lag, acf))
@@ -157,16 +176,11 @@ auto2 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
 grid.arrange(auto1, auto2, nrow = 2)
 
 ```
-En la figura 4 se evidencia la necesidad de realizar una diferenciación estacional, ya que los valores de los rezagos múltiplos de 4 de la Función de Autocorrelación Muestral (FACM) muestran un decrecimiento lineal. Esto sugiere que, al ajustar un modelo autoregresivo en la parte estacional, la estimación del parámetro estará próxima a 1.
+La figura 4 evidencia la necesidad de realizar una diferenciación estacional, ya que los valores de los rezagos múltiplos de 4 de la Función de Autocorrelación Muestral (FACM) muestran un decrecimiento lineal. Esto sugiere que, al ajustar un modelo autoregresivo en la parte estacional, la estimación del parámetro estará próxima a 1.
 
 Se aplica una diferenciación estacional, lo que resulta en la siguiente serie:
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, eval=FALSE}
-tsData = ts(datos$agricultura, start = c(2004,1), frequency = 4)
-auto.arima(y = tsData)
-```
-
-```{r, warning=FALSE, echo=FALSE, message = FALSE}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.cap="Serie del VAB diferenciada estacionalmente. Período 2004-2023"}
 datos = datos %>%  mutate(agricultura_dif_4 = difference(agricultura, 4))
 
 ggplot(data = datos) + 
@@ -196,7 +210,7 @@ Al aplicar la diferencia, la nueva serie de tiempo resulta estacionaria en media
 
 
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.height=6}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.height=6, fig.cap = "Autocorrelación muestral y autocorrelación parcial muestral del VAB diferenciado estacionalmente"}
 bacf <- acf(datos$agricultura_dif_4[-c(1,2,3,4)], plot = FALSE, lag.max = 70)
 bacfdf <- with(bacf, data.frame(lag, acf))
 ciline <- qnorm((1 - .95)/2)/sqrt(length(datos$agricultura_dif_4[-c(1,2,3,4)]))
@@ -208,7 +222,7 @@ auto3 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'blue') +
   scale_y_continuous(breaks = seq(-.4,1,.2)) +
   scale_x_continuous(breaks = seq(0,80,10)) +
-  labs(y = "Autocorrelacion", x = "Rezagos")
+  labs(y = "Autocorrelacion", x = "Rezagos", title = "FACM")
 
 
 
@@ -222,18 +236,30 @@ auto4 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'blue') +
   scale_y_continuous(breaks = seq(-.4,1,.2)) +
   scale_x_continuous(breaks = seq(0,80,10)) +
-  labs(y = "Autocorrelacion", x = "Rezagos")
+  labs(y = "Autocorrelacion", x = "Rezagos", title = "FACPM")
 
 grid.arrange(auto3, auto4, nrow = 2)
 
 ```
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+modelo = datos_t %>% model(arima = ARIMA(agricultura ~ pdq(0,0,0) + PDQ(0,1,1)))
+reporte = report(modelo) %>% tidy()
+```
+
 
 Según la estructura de autocorrelación y autocorrelación parcial muestral presentada en la figura X, se concluye que la componente estacional puede modelarse con un MA(1), dado que se observa un decrecimiento exponencial de los rezagos estacionales en la FACPM, y solo el rezago 4 resulta significativo en la FACM. En cuanto a la componente regular, no se identifican valores significativos, por lo que se modelará como ruido blanco. Así, el modelo propuesto es un SARIMA(0,0,0)(0,1,1)$_4$.
 
-## Analisis de residuos
+El modelo planteado es el siguiente:
 
-```{r, echo = FALSE, warning=FALSE}
-modelo = datos_t %>% model(arima = ARIMA(agricultura ~ pdq(0,0,0) + PDQ(0,1,1)))
+$$ (1-B^4)z_t = w_t  = (1-\theta B)a_t = a_t - \theta a_{t-1}$$
+
+La estimación de $\theta$ es `r round(as.numeric(reporte$estimate), 3)`, que es significativamente distinto a 0 con un p-value asociado de `r round(as.numeric(reporte$p.value), 3)`. Como el único parámetro propuesto es significativo, este es el modelo más parsimonioso posible. Este es:
+
+$$ w_t  = a_t + 0.843  a_{t-1}$$
+
+## Análisis de residuos
+
+```{r, echo = FALSE, warning=FALSE, fig.cap= "Residuos estandarizados del modelo"}
 
 datos_modelos = augment(modelo) %>% mutate(res = .innov/sd(.innov))
 
@@ -258,7 +284,7 @@ datos_modelos %>%
 Se puede observar que la media de los residuos es aproximadamente igual a 0. Además, de forma visual, parece corroborarse que la varianza de los residuos se mantiene constante a lo largo del tiempo, lo que sugiere que se cumple la hipótesis de homocedasticidad. Sin embargo, se identifican dos observaciones cuyos residuos se encuentran fuera del intervalo $[-3,3]$, lo que podría indicar que dichas observaciones son atípicas o outliers.
 
 
-```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.height=6}
+```{r, warning=FALSE, echo=FALSE, message = FALSE, fig.height=6, fig.cap = "Autocorrelación muestral y autocorrelación parcial muestral de los residuos del modelo"}
 
 
 
@@ -273,7 +299,7 @@ auto3 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'blue') +
   scale_y_continuous(breaks = seq(-.4,1,.2)) +
   scale_x_continuous(breaks = seq(0,80,10)) +
-  labs(y = "Autocorrelacion", x = "Rezagos")
+  labs(y = "Autocorrelación", x = "Rezagos", title = "FACM")
 
 
 
@@ -287,7 +313,7 @@ auto4 = ggplot(data=bacfdf, mapping=aes(x=lag, y=acf)) +
   geom_hline(aes(yintercept = -ciline), linetype = 2, color = 'blue') +
   scale_y_continuous(breaks = seq(-.4,1,.2)) +
   scale_x_continuous(breaks = seq(0,80,10)) +
-  labs(y = "Autocorrelacion", x = "Rezagos")
+  labs(y = "Autocorrelación", x = "Rezagos", title = "FACPM")
 
 grid.arrange(auto3, auto4, nrow = 2)
 
@@ -299,22 +325,38 @@ Visualmente, solo dos rezagos en la función de autocorrelación parcial muestra
 
 
 ```{r, echo = FALSE}
-num = numeric(20)
-for (i in 1:20) {
-  num[i] = augment(modelo) |>
-  features(.innov, ljung_box, lag = 4*i) %>% select(lb_pvalue) %>% as.numeric()
+num = list()
+for (i in 1:9) {
+  num[[i]] = augment(modelo) |>
+  features(.innov, ljung_box, lag = 4*i) 
 }
-
-num
-
 ```
-Introducir tabla.
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{|l|l|l|l|}
+\hline
+Rezago & Estadística & gl & p-value \\ \hline
+4      &  `r round(as.numeric(num[[1]][2]), 3)`           &  4  &    `r round(as.numeric(num[[1]][3]), 3)`     \\ \hline
+8      &  `r round(as.numeric(num[[2]][2]), 3)`           &  8  &   `r round(as.numeric(num[[2]][3]), 3)`      \\ \hline
+12     &  `r round(as.numeric(num[[3]][2]), 3)`           &  12  &  `r round(as.numeric(num[[3]][3]), 3)`       \\ \hline
+16     &  `r round(as.numeric(num[[4]][2]), 3)`          &  16  &    `r round(as.numeric(num[[4]][3]), 3)`     \\ \hline
+20     &  `r round(as.numeric(num[[5]][2]), 3)`          &  20  &   `r round(as.numeric(num[[5]][3]), 3)`      \\ \hline
+24     &  `r round(as.numeric(num[[6]][2]), 3)`           &  24  &  `r round(as.numeric(num[[6]][3]), 3)`       \\ \hline
+28     &  `r round(as.numeric(num[[7]][2]), 3)`           &  28  &  `r round(as.numeric(num[[7]][3]), 3)`       \\ \hline
+32     &  `r round(as.numeric(num[[8]][2]), 3)`           &  32  &  `r round(as.numeric(num[[8]][3]), 3)`       \\ \hline
+36     &  `r round(as.numeric(num[[9]][2]), 3)`           &  36  & `r round(as.numeric(num[[9]][3]), 3)`        \\ \hline
+\end{tabular}\caption{Prueba de Ljung-Box en varios rezagos}
+\label{table:1}
+\end{center}
+\end{table}
+
 
 No se rechaza ningún test, por lo que se cumple el supuesto de incorrelación de los residuos. Esto indica que no hay evidencia suficiente para sugerir que los residuos estén correlacionados, lo que respalda la hipótesis de que los residuos son independientes y, por lo tanto, se puede considerar que el modelo ajustado cumple con este supuesto.
 
 
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, fig.cap = "Q-Q normal de los residuos del modelo"}
   
   # report(modelo)
 shap = datos_modelos$res %>% 
@@ -332,18 +374,14 @@ ggplot(datos_modelos) +
 ```
 
 
-En la figura X se observa que los cuantiles de los residuos no se ajustan a los de una distribución normal. Además, se aplicó el test de Shapiro-Wilk sobre los residuos para evaluar su normalidad, el cual rechaza la hipótesis de que los residuos siguen una distribución normal.
-
-```{r, echo=FALSE, warning=FALSE}
-report(modelo)
-```
-
-Dado que el modelo planteado tiene un único parámetro, se puede considerar como el modelo más parsimonioso posible.
+En la figura 9 se observa que los cuantiles de los residuos no se ajustan a los de una distribución normal. Además, se aplicó el test de Shapiro-Wilk sobre los residuos para evaluar su normalidad, el cual rechaza la hipótesis de que los residuos siguen una distribución normal. Esto se debe a que existen dos observaciones atípicas, el segundo trimestre de 2009 y 2023. Estos son los dos valores más pequeños de todos los segundos cuatrimestres desde 2004 hasta este momento.
 
 
-## Evaluacion predictiva del modelo
+
+## Evaluación predictiva del modelo
 
 
+Para ver qué tan bien predice el modelo, se predice un año con el modelo y se compara con las observaciones que se habían reservado para este propósito.
 
 ```{r, echo=FALSE, warning=FALSE, eval=FALSE}
 prediccion = modelo %>% forecast(h = 4) %>% as.data.frame() %>% mutate(indice_tiempo = datos_total$indice_tiempo[79:82])
@@ -373,7 +411,7 @@ quantile(prediccion$agricultura, p = .025)
 mape = mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[,1])*100
 ```
 
-```{r}
+```{r, echo = FALSE, fig.cap= "Comparación de los valores predichos vs. los observados"}
 colors <- c("Observados" = "steelblue", "Predichos" = "darkred")
 prediccion = modelo %>% forecast(h = 4) %>% as.data.frame() %>% mutate(indice_tiempo = datos_total$indice_tiempo[79:82])
 datos_total[79:82,] %>%   
@@ -399,13 +437,9 @@ mape = mean(abs((datos_total[79:82,2] - prediccion$.mean)/datos_total[79:82,2])[
 ```
 
 
+Para comparar la predicción se utiliza el error absoluto medio porcentual (MAPE). Dicha métrica es igual a `r round(mape,3)`%, lo que indica que las estimaciones del modelo son bastante precisas.
 
-
-El MAPE es igual a `r mape`%, lo que indica que las estimaciones del modelo son bastante precisas.
-
-```{r, echo=FALSE, warning=FALSE}
-
-
+```{r, echo=FALSE, warning=FALSE, fig.cap= "Predicción a un año del VAB. Período 2004-2025"}
 
 datos_final <- datos_total %>% mutate(indice_tiempo = yearquarter(indice_tiempo)) %>% as_tsibble(index = indice_tiempo)
 
@@ -427,7 +461,7 @@ datos_total %>%  mutate(color = datos_total$agricultura* 0 ,
                breaks = seq(from = as.Date("2004-01-01"),
                             to = as.Date("2026-04-01"), by = "2 years"),
                date_labels = "%Y") + geom_point(color = "#D34343", size = 1) +
-  scale_color_discrete(type = c("steelblue", "yellow"), 
+  scale_color_discrete(type = c("steelblue", "#B0DB43"), 
                        labels = c("Observados", "Predichos"),
                        name = c("Valores"))
 
@@ -436,7 +470,17 @@ datos_total %>%  mutate(color = datos_total$agricultura* 0 ,
 ```
 
 
-Se puede observar que el modelo predice que el final del año 2024 y el comienzo del 2025 serán similares al año anterior. Esto sugiere que las condiciones que están modeladas y observadas en el período actual tienden a mantenerse estables en el futuro cercano, según las tendencias identificadas por el modelo. Esta predicción podría implicar que no se anticipan cambios significativos en las variables de interés a corto plazo.
+Se puede observar que el modelo predice que el final del año 2024 y el comienzo de 2025 serán similares al año anterior del predicho. Esto sugiere que las condiciones que están modeladas y observadas en el período actual tienden a mantenerse estables en el futuro cercano, según las tendencias identificadas por el modelo. Esta predicción podría implicar que no se anticipan cambios significativos en el VAB a corto plazo.
+
+
+## Conclusiones
+
+El VAB presenta un patrón estacional sin complicaciones importantes respecto a la variabilidad de la serie. Debido a su tendencia creciente,  fue necesario aplicar una diferenciación. Considerando tanto la estacionalidad como las características de las autocorrelaciones muestrales, se realizó una diferenciación estacional. Tras analizar las nuevas autocorrelaciones, se concluyó que el modelo SARIMA(0,0,0)(0,1,1)$_4$ es el que mejor describe la serie. Este modelo cumple con todos los supuestos, excepto el de la normalidad de los residuos.
+
+
+Aunque el modelo predice con buena precisión un año típico del VAB, al presentar un MAPE bajo, existen dos años en el conjunto de datos que presentan valores atípicamente más bajos que los demás. Esto sugiere que, si no se investiga la causa de estos valores atípicos, será difícil predecir con exactitud cuándo podrían repetirse las condiciones económicas que los originaron.
+
+Por otro lado, el modelo es relativamente simple, ya que se basa únicamente en un parámetro, lo que facilita su interpretación y comprensión.
 
 
 
